@@ -122,6 +122,34 @@ final class PortfolioController extends Controller
         return $response->withStatus(204);
     }
 
+    public function home(Request $request, Response $response): Response
+    {
+        $data = $this->portfolios->all(['showInHome' => true]);
+
+        return $this->respond($response, ['data' => $data]);
+    }
+
+    public function showMetaBySlug(Request $request, Response $response, array $args): Response
+    {
+        $slug = strtolower($args['slug']);
+        $portfolio = $this->portfolios->findBySlug($slug);
+        if (!$portfolio) {
+            throw new HttpException('Portfolio not found', 404);
+        }
+
+        $meta = [
+            'metaTitle' => $portfolio['metaTitle'] ?? '',
+            'metaDescription' => $portfolio['metaDescription'] ?? '',
+            'metaSchema' => $portfolio['metaSchema'] ?? '',
+            'headTagManager' => $portfolio['headTagManager'] ?? '',
+            'bodyTagManager' => $portfolio['bodyTagManager'] ?? '',
+            // helpful fallbacks
+            'fallbackTitle' => $portfolio['heroTitle'] ?? $portfolio['name'] ?? '',
+        ];
+
+        return $this->respond($response, ['data' => $meta]);
+    }
+
     /**
      * @param mixed $raw
      * @return array<string, mixed>
@@ -156,6 +184,21 @@ final class PortfolioController extends Controller
             : null;
         $downloadTitle = $this->optionalString($raw, 'downloadTitle', $errors, true);
         $downloadDescription = $this->optionalString($raw, 'downloadDescription', $errors, true);
+        $ctaTitle = $this->optionalString($raw, 'ctaTitle', $errors, true);
+        $metaTitle = $this->optionalString($raw, 'metaTitle', $errors, true);
+        $metaDescription = $this->optionalString($raw, 'metaDescription', $errors, true);
+        $metaSchema = $this->optionalString($raw, 'metaSchema', $errors, true);
+
+        
+        $headTagManager = $this->optionalString($raw, 'headTagManager', $errors, true);
+        $bodyTagManager = $this->optionalString($raw, 'bodyTagManager', $errors, true);
+$showDownloadSection = null;
+        if (array_key_exists('showDownloadSection', $raw)) {
+            $showDownloadSection = filter_var($raw['showDownloadSection'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($showDownloadSection === null) {
+                $errors['showDownloadSection'][] = 'showDownloadSection must be a boolean.';
+            }
+        }
 
         if (!empty($errors)) {
             throw new ValidationException($errors);
@@ -180,8 +223,15 @@ final class PortfolioController extends Controller
             'gallery' => $gallery,
             'ctaButtons' => $ctaButtons,
             'showInHome' => $showInHome ?? false,
+            'showDownloadSection' => $showDownloadSection,
             'downloadTitle' => $downloadTitle,
             'downloadDescription' => $downloadDescription,
+            'ctaTitle' => $ctaTitle,
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
+            'metaSchema' => $metaSchema,
+            'headTagManager' => $headTagManager,
+            'bodyTagManager' => $bodyTagManager,
             'sortOrder' => isset($raw['sortOrder']) ? (int) $raw['sortOrder'] : 0,
         ];
     }

@@ -140,10 +140,15 @@ final class BlogController extends Controller
         $content = $this->optionalString($raw, 'content', $errors, true);
         $readTime = $this->optionalString($raw, 'readTime', $errors, true);
         $image = $this->optionalString($raw, 'image', $errors, true);
-        $htmlTitle = $this->optionalString($raw, 'htmlTitle', $errors, true);
-        $htmlMetaTags = $this->optionalString($raw, 'htmlMetaTags', $errors, true);
 
-        if (!empty($errors)) {
+        $metaTitle = $this->optionalString($raw, 'metaTitle', $errors, true);
+        $metaDescription = $this->optionalString($raw, 'metaDescription', $errors, true);
+        $metaSchema = $this->optionalString($raw, 'metaSchema', $errors, true);
+
+        
+        $headTagManager = $this->optionalString($raw, 'headTagManager', $errors, true);
+        $bodyTagManager = $this->optionalString($raw, 'bodyTagManager', $errors, true);
+if (!empty($errors)) {
             throw new ValidationException($errors);
         }
 
@@ -157,11 +162,13 @@ final class BlogController extends Controller
             'date' => $publishDate,
             'readTime' => $readTime,
             'image' => $image,
-            'htmlTitle' => $htmlTitle,
-            'htmlMetaTags' => $htmlMetaTags,
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
+            'metaSchema' => $metaSchema,
+            'headTagManager' => $headTagManager,
+            'bodyTagManager' => $bodyTagManager,
             'tags' => $tags,
             'topicIds' => $topicIds,
         ];
     }
-
 }

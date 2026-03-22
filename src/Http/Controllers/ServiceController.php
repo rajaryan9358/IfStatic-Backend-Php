@@ -30,6 +30,28 @@ final class ServiceController extends Controller
         return $this->respond($response, ['data' => $data]);
     }
 
+    public function indexMinimal(Request $request, Response $response): Response
+    {
+        $services = $this->services->all();
+        $minimal = array_map(
+            static fn(array $service): array => [
+                'id' => isset($service['id']) ? (int) $service['id'] : null,
+                'name' => $service['name'] ?? '',
+                'alias' => $service['alias'] ?? '',
+                'sortOrder' => isset($service['sortOrder']) ? (int) $service['sortOrder'] : 0,
+            ],
+            $services
+        );
+
+        usort(
+            $minimal,
+            static fn(array $a, array $b): int => ($a['sortOrder'] <=> $b['sortOrder'])
+                ?: strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''))
+        );
+
+        return $this->respond($response, ['data' => $minimal]);
+    }
+
     public function show(Request $request, Response $response, array $args): Response
     {
         $service = $this->services->findByIdentifier($args['identifier']);
@@ -134,8 +156,15 @@ final class ServiceController extends Controller
             'service_icon',
             $errors
         );
+        $payload['metaTitle'] = $this->optionalString($raw, 'metaTitle', $errors, true);
+        $payload['metaDescription'] = $this->optionalString($raw, 'metaDescription', $errors, true);
+        $payload['metaSchema'] = $this->optionalString($raw, 'metaSchema', $errors, true);
 
-        $payload['approachList'] = $this->ensureArrayOfObjects($raw['approachList'] ?? [], ['title']);
+        
+
+        $payload['headTagManager'] = $this->optionalString($raw, 'headTagManager', $errors, true);
+        $payload['bodyTagManager'] = $this->optionalString($raw, 'bodyTagManager', $errors, true);
+$payload['approachList'] = $this->ensureArrayOfObjects($raw['approachList'] ?? [], ['title']);
         $payload['toolsList'] = $this->ensureArrayOfObjects($raw['toolsList'] ?? [], ['name']);
         $payload['mobileApps'] = $this->ensureArrayOfObjects($raw['mobileApps'] ?? [], ['title']);
         $payload['featuredPortfolioIds'] = $this->sanitizeNumericArray($raw['featuredPortfolioIds'] ?? []);

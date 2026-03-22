@@ -32,6 +32,13 @@ final class PortfolioModel extends BaseModel
         'p.show_in_home',
         'p.download_title',
         'p.download_description',
+        'p.show_download_section',
+        'p.cta_title',
+        'p.meta_title',
+        'p.meta_description',
+        'p.meta_schema',
+        'p.head_tag_manager',
+        'p.body_tag_manager',
         'p.created_at',
         'p.updated_at',
         's.name AS service_name',
@@ -62,6 +69,10 @@ final class PortfolioModel extends BaseModel
         if (!empty($filters['serviceId'])) {
             $clauses[] = 'p.service_id = :serviceId';
             $params['serviceId'] = (int) $filters['serviceId'];
+        }
+        if (array_key_exists('showInHome', $filters)) {
+            $clauses[] = 'p.show_in_home = :showInHome';
+            $params['showInHome'] = (int) ((bool) $filters['showInHome']);
         }
 
         $where = $clauses ? 'WHERE ' . implode(' AND ', $clauses) : '';
@@ -156,8 +167,17 @@ final class PortfolioModel extends BaseModel
             'gallery' => Json::encode($portfolio['gallery'] ?? []),
             'cta_buttons' => Json::encode($portfolio['ctaButtons'] ?? []),
             'show_in_home' => isset($portfolio['showInHome']) ? (int) ((bool) $portfolio['showInHome']) : 0,
-            'download_title' => $portfolio['downloadTitle'] ?? ($portfolio['heroTagline'] ?? null),
-            'download_description' => $portfolio['downloadDescription'] ?? ($portfolio['summary'] ?? null),
+            'show_download_section' => array_key_exists('showDownloadSection', $portfolio)
+                ? (int) ((bool) $portfolio['showDownloadSection'])
+                : 1,
+            'download_title' => $portfolio['downloadTitle'] ?? ($portfolio['heroTagline'] ?? ''),
+            'download_description' => $portfolio['downloadDescription'] ?? ($portfolio['summary'] ?? ''),
+            'cta_title' => $portfolio['ctaTitle'] ?? '',
+            'meta_title' => $portfolio['metaTitle'] ?? '',
+            'meta_description' => $portfolio['metaDescription'] ?? '',
+            'meta_schema' => $portfolio['metaSchema'] ?? '',
+            'head_tag_manager' => $portfolio['headTagManager'] ?? '',
+            'body_tag_manager' => $portfolio['bodyTagManager'] ?? '',
             'sort_order' => $portfolio['sortOrder'] ?? 0,
         ];
     }
@@ -192,6 +212,13 @@ final class PortfolioModel extends BaseModel
             'showInHome' => (bool) ($row['show_in_home'] ?? false),
             'downloadTitle' => $row['download_title'],
             'downloadDescription' => $row['download_description'],
+            'showDownloadSection' => (bool) ($row['show_download_section'] ?? true),
+            'ctaTitle' => $row['cta_title'] ?? null,
+            'metaTitle' => $row['meta_title'] ?? '',
+            'metaDescription' => $row['meta_description'] ?? '',
+            'metaSchema' => $row['meta_schema'] ?? '',
+            'headTagManager' => $row['head_tag_manager'] ?? '',
+            'bodyTagManager' => $row['body_tag_manager'] ?? '',
             'createdAt' => $row['created_at'],
             'updatedAt' => $row['updated_at'],
             'testimonials' => [],

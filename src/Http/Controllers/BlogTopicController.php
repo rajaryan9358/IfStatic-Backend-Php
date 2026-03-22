@@ -39,6 +39,21 @@ final class BlogTopicController extends Controller
         return $this->respond($response, ['data' => $topic]);
     }
 
+    public function showBySlug(Request $request, Response $response, array $args): Response
+    {
+        $slug = strtolower(trim((string) ($args['slug'] ?? '')));
+        if ($slug === '') {
+            throw new HttpException('Blog topic not found', 404);
+        }
+
+        $topic = $this->topics->findBySlug($slug);
+        if (!$topic) {
+            throw new HttpException('Blog topic not found', 404);
+        }
+
+        return $this->respond($response, ['data' => $topic]);
+    }
+
     public function store(Request $request, Response $response): Response
     {
         $payload = $this->validateTopicPayload($request->getParsedBody() ?? []);
@@ -94,7 +109,14 @@ final class BlogTopicController extends Controller
         $description = $this->optionalString($raw, 'description', $errors, true) ?? '';
         $sortOrder = isset($raw['sortOrder']) && is_numeric($raw['sortOrder']) ? (int) $raw['sortOrder'] : 0;
 
-        if (!empty($errors)) {
+        $metaTitle = $this->optionalString($raw, 'metaTitle', $errors, true);
+        $metaDescription = $this->optionalString($raw, 'metaDescription', $errors, true);
+        $metaSchema = $this->optionalString($raw, 'metaSchema', $errors, true);
+
+        
+        $headTagManager = $this->optionalString($raw, 'headTagManager', $errors, true);
+        $bodyTagManager = $this->optionalString($raw, 'bodyTagManager', $errors, true);
+if (!empty($errors)) {
             throw new ValidationException($errors);
         }
 
@@ -103,6 +125,11 @@ final class BlogTopicController extends Controller
             'slug' => $slug,
             'description' => $description,
             'sortOrder' => $sortOrder,
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
+            'metaSchema' => $metaSchema,
+            'headTagManager' => $headTagManager,
+            'bodyTagManager' => $bodyTagManager,
         ];
     }
 }
