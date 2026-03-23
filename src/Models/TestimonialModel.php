@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Support\Json;
 use PDO;
+use Throwable;
 
 final class TestimonialModel extends BaseModel
 {
@@ -29,9 +30,48 @@ final class TestimonialModel extends BaseModel
         'updated_at'
     ];
 
+    /** @var array<int, string> */
+    private array $availableColumns = [];
+
     public function __construct(PDO $db)
     {
         parent::__construct($db);
+        $this->availableColumns = $this->detectColumns();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function detectColumns(): array
+    {
+        try {
+            $statement = $this->db->query('SHOW COLUMNS FROM testimonials');
+            $fields = $statement ? array_column($statement->fetchAll(), 'Field') : [];
+            return $fields ?: self::COLUMNS;
+        } catch (Throwable $e) {
+            return self::COLUMNS;
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function selectableColumns(): array
+    {
+        return array_values(array_intersect(self::COLUMNS, $this->availableColumns));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function filterPayload(array $payload): array
+    {
+        return array_filter(
+            $payload,
+            fn ($value, string $key) => in_array($key, $this->availableColumns, true),
+            ARRAY_FILTER_USE_BOTH
+        );
     }
 
     /**
@@ -40,8 +80,9 @@ final class TestimonialModel extends BaseModel
     public function list(?string $pagePath = null): array
     {
         $params = [];
-        $sql = sprintf('SELECT %s FROM testimonials', implode(', ', self::COLUMNS));
-        if ($pagePath) {
+        $sql = sprintf('SELECT %s FROM testimonials', implode(', ', $this->selectableColumns()));
+
+        if ($pagePath && in_array('page_aliases', $this->availableColumns, true)) {
             $sql .= ' WHERE JSON_CONTAINS(page_aliases, JSON_QUOTE(:path))';
             $params['path'] = $pagePath;
             $alias = $this->extractAlias($pagePath);
@@ -50,18 +91,34 @@ final class TestimonialModel extends BaseModel
                 $params['alias'] = $alias;
             }
         }
-        $sql .= ' ORDER BY sort_order ASC, created_at DESC';
 
-        $statement = $this->db->prepare($sql);
-        $statement->execute($params);
+        $sortColumn = in_array('sort_order', $this->availableColumns, true) ? 'sort_order' : 'id';
+        $dateColumn = in_array('created_at', $this->availableColumns, true) ? 'created_at' : 'id';
+        $sql .= sprintf(' ORDER BY %s ASC, %s DESC', $sortColumn, $dateColumn);
 
-        return array_map(fn (array $row) => $this->mapRow($row), $statement->fetchAll());
+        try {
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
+
+            return array_map(fn (array $row) => $this->mapRow($row), $statement->fetchAll());
+        } catch (Throwable $e) {
+            $fallbackSql = sprintf(
+                'SELECT %s FROM testimonials ORDER BY %s ASC, %s DESC',
+                implode(', ', $this->selectableColumns()),
+                $sortColumn,
+                $dateColumn
+            );
+            $statement = $this->db->prepare($fallbackSql);
+            $statement->execute();
+
+            return array_map(fn (array $row) => $this->mapRow($row), $statement->fetchAll());
+        }
     }
 
     public function find(int $id): ?array
     {
         $statement = $this->db->prepare(
-            sprintf('SELECT %s FROM testimonials WHERE id = :id LIMIT 1', implode(', ', self::COLUMNS))
+            sprintf('SELECT %s FROM testimonials WHERE id = :id LIMIT 1', implode(', ', $this->selectableColumns()))
         );
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
@@ -106,7 +163,7 @@ final class TestimonialModel extends BaseModel
      */
     private function toPayload(array $payload): array
     {
-        return [
+        return $this->filterPayload([
             'name' => $payload['name'],
             'handle' => $payload['handle'] ?? null,
             'role' => $payload['role'] ?? null,
@@ -121,7 +178,7 @@ final class TestimonialModel extends BaseModel
             'skills' => Json::encode($payload['skills'] ?? []),
             'page_aliases' => Json::encode($payload['pageAliases'] ?? []),
             'sort_order' => $payload['sortOrder'] ?? 0,
-        ];
+        ]);
     }
 
     /**
@@ -131,23 +188,23 @@ final class TestimonialModel extends BaseModel
     private function mapRow(array $row): array
     {
         return [
-            'id' => (int) $row['id'],
-            'name' => $row['name'],
-            'handle' => $row['handle'],
+            'id' => (int) ($row['id'] ?? 0),
+            'name' => $row['name'] ?? '',
+            'handle' => $row['handle'] ?? null,
             'sortOrder' => (int) ($row['sort_order'] ?? 0),
-            'role' => $row['role'],
-            'company' => $row['company'],
-            'location' => $row['location'],
-            'project' => $row['project'],
-            'budget' => $row['budget'],
-            'timeframe' => $row['timeframe'],
-            'testimonial' => $row['testimonial'],
+            'role' => $row['role'] ?? null,
+            'company' => $row['company'] ?? null,
+            'location' => $row['location'] ?? null,
+            'project' => $row['project'] ?? null,
+            'budget' => $row['budget'] ?? null,
+            'timeframe' => $row['timeframe'] ?? null,
+            'testimonial' => $row['testimonial'] ?? '',
             'rating' => (int) ($row['rating'] ?? 5),
-            'image' => $row['image'],
-            'skills' => Json::decode($row['skills']),
-            'pageAliases' => Json::decode($row['page_aliases']),
-            'createdAt' => $row['created_at'],
-            'updatedAt' => $row['updated_at'],
+            'image' => $row['image'] ?? null,
+            'skills' => Json::decode($row['skills'] ?? null),
+            'pageAliases' => Json::decode($row['page_aliases'] ?? null),
+            'createdAt' => $row['created_at'] ?? null,
+            'updatedAt' => $row['updated_at'] ?? null,
         ];
     }
 

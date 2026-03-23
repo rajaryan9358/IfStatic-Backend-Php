@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Support\Json;
 use PDO;
+use Throwable;
 
 final class PortfolioModel extends BaseModel
 {
@@ -45,12 +46,70 @@ final class PortfolioModel extends BaseModel
         's.alias AS service_alias'
     ];
 
+    /** @var array<int, string> */
+    private array $availableColumns = [];
+
     private TestimonialModel $testimonials;
 
     public function __construct(PDO $db, ?TestimonialModel $testimonials = null)
     {
         parent::__construct($db);
+        $this->availableColumns = $this->detectColumns();
         $this->testimonials = $testimonials ?? new TestimonialModel($db);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function detectColumns(): array
+    {
+        try {
+            $statement = $this->db->query('SHOW COLUMNS FROM portfolios');
+            $fields = $statement ? array_column($statement->fetchAll(), 'Field') : [];
+            return $fields ?: array_map([$this, 'stripTablePrefix'], self::COLUMNS);
+        } catch (Throwable $e) {
+            return array_map([$this, 'stripTablePrefix'], self::COLUMNS);
+        }
+    }
+
+    private function stripTablePrefix(string $column): string
+    {
+        if (stripos($column, ' AS ') !== false) {
+            return trim((string) preg_replace('/^.*\s+AS\s+/i', '', $column));
+        }
+
+        return str_contains($column, '.') ? (string) substr($column, strpos($column, '.') + 1) : $column;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function selectableColumns(): array
+    {
+        return array_values(array_filter(
+            self::COLUMNS,
+            function (string $column): bool {
+                if (stripos($column, ' AS ') !== false) {
+                    return true;
+                }
+
+                $rawColumn = $this->stripTablePrefix($column);
+                return in_array($rawColumn, $this->availableColumns, true);
+            }
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function filterPayload(array $payload): array
+    {
+        return array_filter(
+            $payload,
+            fn ($value, string $key) => in_array($key, $this->availableColumns, true),
+            ARRAY_FILTER_USE_BOTH
+        );
     }
 
     /**
@@ -70,7 +129,7 @@ final class PortfolioModel extends BaseModel
             $clauses[] = 'p.service_id = :serviceId';
             $params['serviceId'] = (int) $filters['serviceId'];
         }
-        if (array_key_exists('showInHome', $filters)) {
+        if (array_key_exists('showInHome', $filters) && in_array('show_in_home', $this->availableColumns, true)) {
             $clauses[] = 'p.show_in_home = :showInHome';
             $params['showInHome'] = (int) ((bool) $filters['showInHome']);
         }
@@ -79,7 +138,7 @@ final class PortfolioModel extends BaseModel
 
         $sql = sprintf(
             'SELECT %s FROM portfolios p LEFT JOIN services s ON s.id = p.service_id %s ORDER BY p.sort_order ASC, p.created_at DESC',
-            implode(', ', self::COLUMNS),
+            implode(', ', $this->selectableColumns()),
             $where
         );
 
@@ -92,7 +151,7 @@ final class PortfolioModel extends BaseModel
     public function find(int $id): ?array
     {
         $statement = $this->db->prepare(
-            sprintf('SELECT %s FROM portfolios p LEFT JOIN services s ON s.id = p.service_id WHERE p.id = :id LIMIT 1', implode(', ', self::COLUMNS))
+            sprintf('SELECT %s FROM portfolios p LEFT JOIN services s ON s.id = p.service_id WHERE p.id = :id LIMIT 1', implode(', ', $this->selectableColumns()))
         );
         $statement->execute(['id' => $id]);
         $row = $statement->fetch();
@@ -103,7 +162,7 @@ final class PortfolioModel extends BaseModel
     public function findBySlug(string $slug): ?array
     {
         $statement = $this->db->prepare(
-            sprintf('SELECT %s FROM portfolios p LEFT JOIN services s ON s.id = p.service_id WHERE p.slug = :slug LIMIT 1', implode(', ', self::COLUMNS))
+            sprintf('SELECT %s FROM portfolios p LEFT JOIN services s ON s.id = p.service_id WHERE p.slug = :slug LIMIT 1', implode(', ', $this->selectableColumns()))
         );
         $statement->execute(['slug' => $slug]);
         $row = $statement->fetch();
@@ -148,7 +207,7 @@ final class PortfolioModel extends BaseModel
      */
     private function toPayload(array $portfolio): array
     {
-        return [
+        return $this->filterPayload([
             'service_id' => $portfolio['serviceId'],
             'slug' => strtolower($portfolio['slug']),
             'name' => $portfolio['name'],
@@ -179,7 +238,7 @@ final class PortfolioModel extends BaseModel
             'head_tag_manager' => $portfolio['headTagManager'] ?? '',
             'body_tag_manager' => $portfolio['bodyTagManager'] ?? '',
             'sort_order' => $portfolio['sortOrder'] ?? 0,
-        ];
+        ]);
     }
 
     /**
@@ -188,30 +247,30 @@ final class PortfolioModel extends BaseModel
     private function mapRow(array $row, bool $withTestimonials = true): array
     {
         $portfolio = [
-            'id' => (int) $row['id'],
-            'serviceId' => (int) $row['service_id'],
-            'serviceName' => $row['service_name'],
-            'serviceAlias' => $row['service_alias'],
-            'slug' => $row['slug'],
-            'name' => $row['name'],
-            'description' => $row['description'],
+            'id' => (int) ($row['id'] ?? 0),
+            'serviceId' => (int) ($row['service_id'] ?? 0),
+            'serviceName' => $row['service_name'] ?? null,
+            'serviceAlias' => $row['service_alias'] ?? null,
+            'slug' => $row['slug'] ?? '',
+            'name' => $row['name'] ?? '',
+            'description' => $row['description'] ?? '',
             'sortOrder' => (int) ($row['sort_order'] ?? 0),
-            'company' => $row['company'],
-            'image' => $row['image'],
-            'heroCategory' => $row['hero_category'],
-            'heroTitle' => $row['hero_title'],
-            'heroSubtitle' => $row['hero_subtitle'],
-            'heroTagline' => $row['hero_tagline'],
-            'summary' => $row['summary'],
-            'websiteUrl' => $row['website_url'],
-            'tags' => Json::decode($row['tags']),
-            'features' => Json::decode($row['features']),
-            'techStack' => Json::decode($row['tech_stack']),
-            'gallery' => Json::decode($row['gallery']),
-            'ctaButtons' => Json::decode($row['cta_buttons']),
+            'company' => $row['company'] ?? null,
+            'image' => $row['image'] ?? null,
+            'heroCategory' => $row['hero_category'] ?? null,
+            'heroTitle' => $row['hero_title'] ?? null,
+            'heroSubtitle' => $row['hero_subtitle'] ?? null,
+            'heroTagline' => $row['hero_tagline'] ?? null,
+            'summary' => $row['summary'] ?? null,
+            'websiteUrl' => $row['website_url'] ?? null,
+            'tags' => Json::decode($row['tags'] ?? null),
+            'features' => Json::decode($row['features'] ?? null),
+            'techStack' => Json::decode($row['tech_stack'] ?? null),
+            'gallery' => Json::decode($row['gallery'] ?? null),
+            'ctaButtons' => Json::decode($row['cta_buttons'] ?? null),
             'showInHome' => (bool) ($row['show_in_home'] ?? false),
-            'downloadTitle' => $row['download_title'],
-            'downloadDescription' => $row['download_description'],
+            'downloadTitle' => $row['download_title'] ?? '',
+            'downloadDescription' => $row['download_description'] ?? '',
             'showDownloadSection' => (bool) ($row['show_download_section'] ?? true),
             'ctaTitle' => $row['cta_title'] ?? null,
             'metaTitle' => $row['meta_title'] ?? '',
@@ -219,8 +278,8 @@ final class PortfolioModel extends BaseModel
             'metaSchema' => $row['meta_schema'] ?? '',
             'headTagManager' => $row['head_tag_manager'] ?? '',
             'bodyTagManager' => $row['body_tag_manager'] ?? '',
-            'createdAt' => $row['created_at'],
-            'updatedAt' => $row['updated_at'],
+            'createdAt' => $row['created_at'] ?? null,
+            'updatedAt' => $row['updated_at'] ?? null,
             'testimonials' => [],
         ];
 
