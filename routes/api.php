@@ -85,6 +85,8 @@ return static function (App $app): void {
     $app->get('/api/services', $controller(ServiceController::class, 'index'));
     $app->get('/api/services/minimal', $controller(ServiceController::class, 'indexMinimal'));
     $app->get('/api/services/{identifier}', $controller(ServiceController::class, 'show'));
+    $app->get('/api/services/{identifier}/cities', $controller(ServiceCityController::class, 'publicIndex'));
+    $app->get('/api/services/{identifier}/cities/{citySlug}', $controller(ServiceCityController::class, 'publicShow'));
     $app->post('/api/services', $controller(ServiceController::class, 'store'))->add($adminAuth);
     $app->put('/api/services/{id}', $controller(ServiceController::class, 'update'))->add($adminAuth);
     $app->delete('/api/services/{id}', $controller(ServiceController::class, 'destroy'))->add($adminAuth);
@@ -98,6 +100,8 @@ return static function (App $app): void {
 
     // Portfolios
     $app->get('/api/portfolios', $controller(PortfolioController::class, 'index'));
+    $app->get('/api/portfolios/home', $controller(PortfolioController::class, 'home'));
+    $app->get('/api/portfolios/meta/{slug}', $controller(PortfolioController::class, 'showMetaBySlug'));
     $app->get('/api/portfolios/slug/{slug}', $controller(PortfolioController::class, 'showBySlug'));
     $app->get('/api/portfolios/{id}', $controller(PortfolioController::class, 'show'));
     $app->post('/api/portfolios', $controller(PortfolioController::class, 'store'))->add($adminAuth);

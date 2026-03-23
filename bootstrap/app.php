@@ -7,6 +7,7 @@ use App\Http\Exceptions\ValidationException;
 use App\Http\Middleware\CorsMiddleware;
 use App\Support\Env;
 use Dotenv\Dotenv;
+use Slim\Exception\HttpException as SlimHttpException;
 use Slim\Factory\AppFactory;
 
 $root = dirname(__DIR__);
@@ -35,6 +36,9 @@ $errorMiddleware->setDefaultErrorHandler(function ($request, \Throwable $excepti
         if (method_exists($exception, 'getDetails')) {
             $details = $exception->getDetails();
         }
+    } elseif ($exception instanceof SlimHttpException) {
+        $status = $exception->getCode() ?: 500;
+        $message = $exception->getMessage();
     }
 
     if ($displayErrors && $status === 500) {
