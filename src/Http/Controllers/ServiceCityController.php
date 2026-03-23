@@ -204,8 +204,10 @@ final class ServiceCityController extends Controller
 
         $payload['showHero'] = array_key_exists('showHero', $raw) ? !empty($raw['showHero']) : true;
         $payload['showProcess'] = array_key_exists('showProcess', $raw) ? !empty($raw['showProcess']) : true;
+        $payload['useProcessOverride'] = array_key_exists('useProcessOverride', $raw) ? !empty($raw['useProcessOverride']) : false;
         $payload['showTools'] = array_key_exists('showTools', $raw) ? !empty($raw['showTools']) : true;
         $payload['showMobileApps'] = array_key_exists('showMobileApps', $raw) ? !empty($raw['showMobileApps']) : true;
+        $payload['useMobileAppsOverride'] = array_key_exists('useMobileAppsOverride', $raw) ? !empty($raw['useMobileAppsOverride']) : false;
         $payload['showFaqs'] = array_key_exists('showFaqs', $raw) ? !empty($raw['showFaqs']) : true;
 
         $payload['showPortfolios'] = array_key_exists('showPortfolios', $raw) ? !empty($raw['showPortfolios']) : true;
@@ -223,6 +225,23 @@ final class ServiceCityController extends Controller
         $payload['processLabel'] = $this->optionalString($raw, 'processLabel', $errors, true) ?? '';
         $payload['processTitle'] = $this->optionalString($raw, 'processTitle', $errors, true) ?? '';
         $payload['approachList'] = $this->ensureArrayOfObjects($raw['approachList'] ?? [], ['title']);
+
+        $payload['mobileAppsLabel'] = $this->optionalString($raw, 'mobileAppsLabel', $errors, true) ?? '';
+        $payload['mobileAppsTitle'] = $this->optionalString($raw, 'mobileAppsTitle', $errors, true) ?? '';
+        $payload['mobileApps'] = $this->ensureArrayOfObjects($raw['mobileApps'] ?? [], ['title']);
+
+        if (!$payload['useProcessOverride']) {
+            $payload['approachImage'] = '';
+            $payload['processLabel'] = '';
+            $payload['processTitle'] = '';
+            $payload['approachList'] = [];
+        }
+
+        if (!$payload['useMobileAppsOverride']) {
+            $payload['mobileAppsLabel'] = '';
+            $payload['mobileAppsTitle'] = '';
+            $payload['mobileApps'] = [];
+        }
 
         // FAQs overrides
         $payload['faqs'] = $this->sanitizeFaqs($raw['faqs'] ?? []);
