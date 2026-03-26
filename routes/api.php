@@ -101,10 +101,12 @@ return static function (App $app): void {
     // Portfolios
     $app->get('/api/portfolios', $controller(PortfolioController::class, 'index'));
     $app->get('/api/portfolios/home', $controller(PortfolioController::class, 'home'));
+    $app->get('/api/portfolios/home-order', $controller(PortfolioController::class, 'homeOrder'))->add($adminAuth);
     $app->get('/api/portfolios/meta/{slug}', $controller(PortfolioController::class, 'showMetaBySlug'));
     $app->get('/api/portfolios/slug/{slug}', $controller(PortfolioController::class, 'showBySlug'));
     $app->get('/api/portfolios/{id}', $controller(PortfolioController::class, 'show'));
     $app->post('/api/portfolios', $controller(PortfolioController::class, 'store'))->add($adminAuth);
+    $app->put('/api/portfolios/home-order', $controller(PortfolioController::class, 'updateHomeOrder'))->add($adminAuth);
     $app->put('/api/portfolios/{id}', $controller(PortfolioController::class, 'update'))->add($adminAuth);
     $app->delete('/api/portfolios/{id}', $controller(PortfolioController::class, 'destroy'))->add($adminAuth);
 
