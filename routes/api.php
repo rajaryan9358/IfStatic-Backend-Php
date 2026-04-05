@@ -10,6 +10,7 @@ use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\ServiceCityController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SeoMetaController;
 use App\Http\Controllers\MetaController;
@@ -37,6 +38,8 @@ return static function (App $app): void {
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     });
+
+    $app->get('/sitemap.xml', $controller(SitemapController::class, 'xml'));
 
     // Public, unauthenticated content APIs (frontend consumption)
     $app->get('/api/public/services', $controller(ServiceController::class, 'index'));
@@ -76,6 +79,12 @@ return static function (App $app): void {
     // SEO meta
     $app->get('/api/seo-meta', $controller(SeoMetaController::class, 'index'))->add($adminAuth);
     $app->put('/api/seo-meta', $controller(SeoMetaController::class, 'upsert'))->add($adminAuth);
+
+    // Sitemap
+    $app->get('/api/sitemap', $controller(SitemapController::class, 'show'))->add($adminAuth);
+    $app->put('/api/sitemap', $controller(SitemapController::class, 'update'))->add($adminAuth);
+    $app->post('/api/sitemap/generate-default', $controller(SitemapController::class, 'generateDefault'))->add($adminAuth);
+    $app->post('/api/sitemap/append-content-urls', $controller(SitemapController::class, 'appendContentUrls'))->add($adminAuth);
 
     // Portfolio service-tab SEO meta
     $app->get('/api/portfolio-service-tab-seo-meta', $controller(PortfolioServiceTabSeoMetaController::class, 'index'))->add($adminAuth);

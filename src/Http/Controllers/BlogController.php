@@ -9,6 +9,7 @@ use App\Http\Exceptions\HttpException;
 use App\Http\Exceptions\ValidationException;
 use App\Models\BlogModel;
 use App\Models\BlogTopicModel;
+use App\Support\SitemapService;
 use App\Validation\Concerns\ValidatesRequest;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -74,6 +75,10 @@ final class BlogController extends Controller
         $payload = $this->validateBlogPayload($request->getParsedBody() ?? []);
         $blog = $this->blogs->create($payload);
 
+        if ($blog && !empty($blog['slug'])) {
+            (new SitemapService())->ensureBlogUrl((string) $blog['slug'], null);
+        }
+
         return $this->respond($response, ['data' => $blog], 201);
     }
 
@@ -85,8 +90,17 @@ final class BlogController extends Controller
             throw new HttpException('Blog not found', 404);
         }
 
+        $oldPath = !empty($existing['slug']) ? (new SitemapService())->buildBlogPath((string) $existing['slug']) : null;
         $payload = $this->validateBlogPayload($request->getParsedBody() ?? []);
         $blog = $this->blogs->updateBlog($id, $payload);
+
+        if ($blog && !empty($blog['slug'])) {
+            (new SitemapService())->replacePath(
+                $oldPath,
+                (new SitemapService())->buildBlogPath((string) $blog['slug']),
+                null
+            );
+        }
 
         return $this->respond($response, ['data' => $blog]);
     }
@@ -97,7 +111,12 @@ final class BlogController extends Controller
         if ($id <= 0) {
             throw new HttpException('Invalid blog identifier', 400);
         }
+        $existing = $this->blogs->findById($id);
         $this->blogs->deleteBlog($id);
+
+        if ($existing && !empty($existing['slug'])) {
+            (new SitemapService())->removePath((new SitemapService())->buildBlogPath((string) $existing['slug']));
+        }
 
         return $response->withStatus(204);
     }

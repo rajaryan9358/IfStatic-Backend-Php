@@ -10,6 +10,7 @@ use App\Http\Exceptions\ValidationException;
 use App\Models\PortfolioHomeOrderModel;
 use App\Models\PortfolioModel;
 use App\Models\TestimonialModel;
+use App\Support\SitemapService;
 use App\Validation\Concerns\ValidatesRequest;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -140,6 +141,10 @@ final class PortfolioController extends Controller
         $payload = $this->validatePortfolioPayload($request->getParsedBody() ?? []);
         $portfolio = $this->portfolios->createPortfolio($payload);
 
+        if ($portfolio && !empty($portfolio['slug'])) {
+            (new SitemapService())->ensurePortfolioUrl((string) $portfolio['slug'], null);
+        }
+
         return $this->respond($response, ['data' => $portfolio], 201);
     }
 
@@ -154,8 +159,18 @@ final class PortfolioController extends Controller
             throw new HttpException('Portfolio not found', 404);
         }
 
+        $sitemap = new SitemapService();
+        $oldPath = !empty($existing['slug']) ? $sitemap->buildPortfolioPath((string) $existing['slug']) : null;
         $payload = $this->validatePortfolioPayload($request->getParsedBody() ?? []);
         $portfolio = $this->portfolios->updatePortfolio($id, $payload);
+
+        if ($portfolio && !empty($portfolio['slug'])) {
+            $sitemap->replacePath(
+                $oldPath,
+                $sitemap->buildPortfolioPath((string) $portfolio['slug']),
+                null
+            );
+        }
 
         return $this->respond($response, ['data' => $portfolio]);
     }
@@ -171,7 +186,11 @@ final class PortfolioController extends Controller
             throw new HttpException('Portfolio not found', 404);
         }
 
+        $sitemap = new SitemapService();
+        $oldPath = !empty($existing['slug']) ? $sitemap->buildPortfolioPath((string) $existing['slug']) : null;
         $this->portfolios->deletePortfolio($id);
+
+        $sitemap->removePath($oldPath);
 
         return $response->withStatus(204);
     }

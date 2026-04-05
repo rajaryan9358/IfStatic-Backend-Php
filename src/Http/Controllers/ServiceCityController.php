@@ -9,6 +9,7 @@ use App\Http\Exceptions\HttpException;
 use App\Http\Exceptions\ValidationException;
 use App\Models\ServiceCityModel;
 use App\Models\ServiceModel;
+use App\Support\SitemapService;
 use App\Validation\Concerns\ValidatesRequest;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -65,6 +66,14 @@ final class ServiceCityController extends Controller
 
         $created = $this->cities->create($this->cities->toDatabasePayload($payload));
 
+        if ($created && !empty($service['alias']) && !empty($created['slug'])) {
+            (new SitemapService())->ensureServiceCityUrl(
+                (string) $service['alias'],
+                (string) $created['slug'],
+                null
+            );
+        }
+
         return $this->respond($response, ['data' => $created], 201);
     }
 
@@ -87,7 +96,17 @@ final class ServiceCityController extends Controller
             throw new HttpException('serviceId cannot be changed', 400);
         }
 
+        $service = $this->services->findByIdentifier((string) $serviceId);
         $updated = $this->cities->update($id, $this->cities->toDatabasePayload($payload));
+
+        if ($service && !empty($service['alias']) && $updated) {
+            $sitemap = new SitemapService();
+            $sitemap->replacePath(
+                !empty($existing['slug']) ? $sitemap->buildServiceCityPath((string) $service['alias'], (string) $existing['slug']) : null,
+                !empty($updated['slug']) ? $sitemap->buildServiceCityPath((string) $service['alias'], (string) $updated['slug']) : null,
+                null
+            );
+        }
 
         return $this->respond($response, ['data' => $updated]);
     }
@@ -104,7 +123,14 @@ final class ServiceCityController extends Controller
             throw new HttpException('Service city not found', 404);
         }
 
+        $service = $this->services->findByIdentifier((string) ((int) ($existing['serviceId'] ?? 0)));
         $this->cities->delete($id);
+
+        if ($service && !empty($service['alias']) && !empty($existing['slug'])) {
+            (new SitemapService())->removePath(
+                (new SitemapService())->buildServiceCityPath((string) $service['alias'], (string) $existing['slug'])
+            );
+        }
 
         return $response->withStatus(204);
     }

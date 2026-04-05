@@ -8,6 +8,7 @@ use App\Database\Database;
 use App\Http\Exceptions\HttpException;
 use App\Http\Exceptions\ValidationException;
 use App\Models\ServiceModel;
+use App\Support\SitemapService;
 use App\Validation\Concerns\ValidatesRequest;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -67,6 +68,10 @@ final class ServiceController extends Controller
         $payload = $this->validateServicePayload($request->getParsedBody() ?? []);
         $service = $this->services->create($this->services->toDatabasePayload($payload));
 
+        if ($service && !empty($service['alias'])) {
+            (new SitemapService())->ensureServiceUrls((string) $service['alias'], (string) ($service['updatedAt'] ?? ''));
+        }
+
         return $this->respond($response, ['data' => $service], 201);
     }
 
@@ -82,8 +87,14 @@ final class ServiceController extends Controller
             throw new HttpException('Service not found', 404);
         }
 
+        $sitemap = new SitemapService();
+        $oldPaths = !empty($existing['alias']) ? $sitemap->buildServicePaths((string) $existing['alias']) : [];
         $payload = $this->validateServicePayload($request->getParsedBody() ?? []);
         $updated = $this->services->update($id, $this->services->toDatabasePayload($payload));
+
+        if ($updated && !empty($updated['alias'])) {
+            $sitemap->replacePaths($oldPaths, $sitemap->buildServicePaths((string) $updated['alias']), (string) ($updated['updatedAt'] ?? ''));
+        }
 
         return $this->respond($response, ['data' => $updated]);
     }
@@ -100,7 +111,13 @@ final class ServiceController extends Controller
             throw new HttpException('Service not found', 404);
         }
 
+        $sitemap = new SitemapService();
+        $oldPaths = !empty($existing['alias']) ? $sitemap->buildServicePaths((string) $existing['alias']) : [];
         $this->services->delete($id);
+
+        foreach ($oldPaths as $oldPath) {
+            $sitemap->removePath($oldPath);
+        }
 
         return $response->withStatus(204);
     }
